@@ -1,10 +1,13 @@
 // ==UserScript==
 // @name         DeepSeek RTL Fix - لا وميض
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/jabar-reda/deepseek-rtl-fix
 // @version      4.3
 // @description  يضبط اتجاه النصوص العربية في DeepSeek فور ظهورها، بدون أي اهتزاز أو انقلاب مزعج
 // @author       jabar-reda
 // @license      MIT
+// @homepage     https://github.com/jabar-reda/deepseek-rtl-fix
+// @homepageURL  https://github.com/jabar-reda/deepseek-rtl-fix
+// @supportURL   https://github.com/jabar-reda/deepseek-rtl-fix/issues
 // @match        https://chat.deepseek.com/*
 // @match        https://deepseek.com/*
 // @icon         https://raw.githubusercontent.com/jabar-reda/deepseek-rtl-fix/main/deepseek-icon.svg
