@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="deepseek-icon.svg" alt="DeepSeek Logo" width="110">
+</p>
+
 # DeepSeek RTL Fix
 
 سكربت [Tampermonkey](https://www.tampermonkey.net/) يُصلح اتجاه النصوص العربية في موقع DeepSeek فور ظهورها — من اليمين لليسار، بدون وميض أو انقلاب مزعج.
