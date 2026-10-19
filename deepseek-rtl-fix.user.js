@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         DeepSeek RTL Fix - لا وميض
 // @namespace    http://tampermonkey.net/
-// @version      4.2
+// @version      4.3
 // @description  يضبط اتجاه النصوص العربية في DeepSeek فور ظهورها، بدون أي اهتزاز أو انقلاب مزعج
 // @author       jabar-reda
 // @license      MIT
 // @match        https://chat.deepseek.com/*
 // @match        https://deepseek.com/*
-// @icon         data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%234D6BFE'/><text x='50' y='68' font-size='45' text-anchor='middle' fill='white' font-weight='bold' font-family='Arial'>ع</text></svg>
-// @icon64       data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%234D6BFE'/><text x='50' y='68' font-size='45' text-anchor='middle' fill='white' font-weight='bold' font-family='Arial'>ع</text></svg>
+// @icon         https://raw.githubusercontent.com/jabar-reda/deepseek-rtl-fix/main/deepseek-icon.svg
+// @icon64       https://raw.githubusercontent.com/jabar-reda/deepseek-rtl-fix/main/deepseek-icon.svg
 // @grant        none
 // @run-at       document-start
 // ==/UserScript==
@@ -334,5 +334,5 @@
     });
 
     // نُعلم المستخدم بأن السكربت يعمل (في وحدة التحكم)
-    console.log('✅ DeepSeek RTL Fix v4.2 يعمل الآن بسلاسة.');
+    console.log('✅ DeepSeek RTL Fix v4.3 يعمل الآن بسلاسة.');
 })();
