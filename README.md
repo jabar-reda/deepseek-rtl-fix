@@ -9,6 +9,8 @@
 ![Version](https://img.shields.io/badge/version-4.3-4D6BFE)
 ![License](https://img.shields.io/github/license/jabar-reda/deepseek-rtl-fix)
 ![Tampermonkey](https://img.shields.io/badge/Tampermonkey-compatible-ff6a00?logo=tampermonkey&logoColor=white)
+![Greasy Fork](https://img.shields.io/greasyfork/v/601115)
+![Greasy Fork installs](https://img.shields.io/greasyfork/dt/601115)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
 ## المميزات
@@ -23,8 +25,10 @@
 ## التثبيت
 
 1. ثبّت إضافة [Tampermonkey](https://www.tampermonkey.net/).
-2. افتح [ملف السكربت](https://raw.githubusercontent.com/jabar-reda/deepseek-rtl-fix/main/deepseek-rtl-fix.user.js).
-3. اضغط **Install** في صفحة التثبيت.
+2. افتح [صفة السكربت على Greasy Fork](https://greasyfork.org/ar/scripts/601115-deepseek-rtl-fix-%D9%84%D8%A7-%D9%88%D9%85%D9%8A%D8%B6).
+3. اضغط **تثبيت هذا البرنامج النصي** — وستصلك التحديثات تلقائياً عبر Greasy Fork.
+
+> بديل: تثبيت مباشر من [الرابط الخام](https://raw.githubusercontent.com/jabar-reda/deepseek-rtl-fix/main/deepseek-rtl-fix.user.js) (بدون تحديث تلقائي).
 
 ## كيف يعمل؟
 
