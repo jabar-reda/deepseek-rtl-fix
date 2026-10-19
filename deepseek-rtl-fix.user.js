@@ -1,15 +1,16 @@
 // ==UserScript==
 // @name         DeepSeek RTL Fix - لا وميض
 // @namespace    http://tampermonkey.net/
-// @version      4.1
+// @version      4.2
 // @description  يضبط اتجاه النصوص العربية في DeepSeek فور ظهورها، بدون أي اهتزاز أو انقلاب مزعج
-// @author       أنت
+// @author       jabar-reda
 // @license      MIT
 // @match        https://chat.deepseek.com/*
 // @match        https://deepseek.com/*
-// @icon         data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%2310a37f'/><text x='50' y='68' font-size='45' text-anchor='middle' fill='white' font-weight='bold' font-family='Arial'>ع</text></svg>
-// @icon64       data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%2310a37f'/><text x='50' y='68' font-size='45' text-anchor='middle' fill='white' font-weight='bold' font-family='Arial'>ع</text></svg>
+// @icon         data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%234D6BFE'/><text x='50' y='68' font-size='45' text-anchor='middle' fill='white' font-weight='bold' font-family='Arial'>ع</text></svg>
+// @icon64       data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%234D6BFE'/><text x='50' y='68' font-size='45' text-anchor='middle' fill='white' font-weight='bold' font-family='Arial'>ع</text></svg>
 // @grant        none
+// @run-at       document-start
 // ==/UserScript==
 
 
@@ -29,6 +30,35 @@
 
 (function () {
     'use strict';
+
+    // --------------------- الثوابت ---------------------
+
+    // محددات حاويات المحادثة في DeepSeek (مجمّعة من هيكل الصفحة الحالي)
+    const CHAT_CONTAINER_SELECTORS = [
+        '.ds-markdown',
+        '.markdown-body',
+        '.message-content',
+        '[class*="message"] > div',
+        '[class*="chat"] .prose'
+    ].join(',');
+
+    // محددات عناصر الكود البرمجي — تُجبر على الاتجاه اليساري دائماً
+    const CODE_SELECTOR = 'code, pre, .code-block, .hljs';
+
+    // عناصر لا يجوز تغيير اتجاهها (أيقونات وأزرار) لأن التغيير يكسر شكلها
+    const UNTOUCHABLE_SELECTOR = 'svg, img, button';
+
+    // التخطيطات التي يقلب تغيير اتجاهها ترتيب عناصرها، فنتركها وشأنها
+    const FLEX_GRID_DISPLAYS = ['flex', 'grid', 'inline-flex', 'inline-grid'];
+
+    // نسبة الأحرف العربية التي يجب تجاوزها لاختيار اتجاه rtl صريحاً
+    const RTL_RATIO_THRESHOLD = 0.5;
+
+    // العناصر النصية التي نفحصها داخل كل حاوية محادثة
+    const TEXT_ELEMENT_SELECTORS = [
+        'p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'span', 'div'
+    ].join(',');
 
     // --------------------- الأدوات المساعدة ---------------------
 
@@ -55,6 +85,38 @@
         return arabicChars.length / totalNonSpaceChars;
     }
 
+    /**
+     * تُخرج نص العنصر كاملاً بعد إزالة أكواده البرمجية،
+     * حتى لا يشوّه الكود الطويل نسبة الأحرف العربية ويخدع قاعدة الاتجاه.
+     * @param {HTMLElement} element - العنصر المراد قياس نصه
+     * @returns {string} - النص بدون أي كود برمجي
+     */
+    function getTextWithoutCode(element) {
+        const clone = element.cloneNode(true);
+        clone.querySelectorAll(CODE_SELECTOR).forEach((node) => node.remove());
+        return clone.textContent || '';
+    }
+
+    /**
+     * تتحقق مما إذا كان العنصر يستخدم تخطيط Flex أو Grid
+     * (تغيير اتجاه هذه الحاويات يقلب محتوياتها رأسياً).
+     * @param {HTMLElement} element - العنصر المراد فحصه
+     * @returns {boolean}
+     */
+    function isFlexOrGrid(element) {
+        const computedDisplay = window.getComputedStyle(element).display;
+        return FLEX_GRID_DISPLAYS.includes(computedDisplay);
+    }
+
+    /**
+     * تجبر عنصراً على الاتجاه اليساري (للكود البرمجي مثلاً).
+     * @param {HTMLElement} element - العنصر المقصود
+     */
+    function forceLtr(element) {
+        element.setAttribute('dir', 'ltr');
+        element.style.unicodeBidi = 'embed';
+    }
+
     // --------------------- منطق الإصلاح الأساسي ---------------------
 
     /**
@@ -68,28 +130,26 @@
         // ----- الخطوة 1: استبعاد العناصر غير المرغوب فيها -----
 
         // 1.1 نتأكد أن العنصر ليس جزءاً من كود برمجي
-        if (element.closest('code, pre, .code-block, .hljs')) {
-            // نجبر الكود على الاتجاه اليساري حتى لا ينقلب
-            element.setAttribute('dir', 'ltr');
-            element.style.unicodeBidi = 'embed';
+        if (element.closest(CODE_SELECTOR)) {
+            forceLtr(element);
             return;
         }
 
         // 1.2 نتجاوز العناصر التي تحتوي على أيقونات أو أزرار (حتى لا نؤثر عليها)
-        if (element.querySelector('svg, img, button')) {
+        if (element.querySelector(UNTOUCHABLE_SELECTOR)) {
             return;
         }
 
         // 1.3 نتجاوز الحاويات المرنة (Flex/Grid) لأن تغيير اتجاهها يقلب المحتويات
-        const computedDisplay = window.getComputedStyle(element).display;
-        const flexOrGrid = ['flex', 'grid', 'inline-flex', 'inline-grid'];
-        if (flexOrGrid.includes(computedDisplay)) {
+        // (نعتمد على التخطيط المحسوب فعلياً، لا على أسماء الكلاسات لأنها تكذب)
+        if (isFlexOrGrid(element)) {
             return;
         }
 
         // ----- الخطوة 2: تحليل النص واتخاذ القرار -----
 
-        const textContent = element.textContent || '';
+        // نقيس النص بدون الأكواد البرمجية حتى لا يشوّه الكود القراءة
+        const textContent = getTextWithoutCode(element);
         // إذا لم يكن هناك نص عربي، لا داعي للمعالجة
         if (!containsArabic(textContent)) {
             return;
@@ -99,8 +159,8 @@
         const ratio = calculateArabicRatio(textContent);
 
         // نختار الاتجاه المناسب
-        if (ratio > 0.5) {
-            // أكثر من 50% عربية => اتجاه RTL صريح
+        if (ratio > RTL_RATIO_THRESHOLD) {
+            // أكثر من النصف عربية => اتجاه RTL صريح
             element.setAttribute('dir', 'rtl');
         } else {
             // النص مختلط بكثرة (أرقام أو إنجليزي) => نترك المتصفح يختار تلقائياً
@@ -114,86 +174,131 @@
     // --------------------- معالجة الصفحة ---------------------
 
     /**
-     * الدالة الرئيسية التي تمسح الصفحة وتُصلح جميع النصوص المستهدفة.
-     * - تبحث عن حاويات المحادثة المعروفة في DeepSeek.
-     * - تُعالج العناصر النصية داخلها (فقرات، عناوين، قوائم، إلخ).
-     * - تُعالج النص المباشر (بدون وسوم) داخل الحاويات.
-     * - تُجبر عناصر الكود البرمجي على الاتجاه اليساري.
+     * يعالج حاوية محادثة واحدة: عناصرها النصية، نصوصها المباشرة،
+     * وأكوادها البرمجية داخلها.
+     * @param {HTMLElement} container - حاوية المحادثة المراد معالجتها
+     */
+    function fixContainer(container) {
+        // نتأكد أن الحاوية نفسها ليست جزءاً من كود برمجي
+        if (container.closest(CODE_SELECTOR)) {
+            return;
+        }
+
+        // --- 1. نعالج العناصر النصية الصريحة داخل الحاوية ---
+        const targetElements = container.querySelectorAll(TEXT_ELEMENT_SELECTORS);
+        targetElements.forEach(applyFixToElement);
+
+        // --- 2. نعالج النص المباشر (غير المغلف) داخل الحاوية ---
+        const childNodes = container.childNodes;
+        let hasDirectArabicText = false;
+        childNodes.forEach((node) => {
+            if (node.nodeType === Node.TEXT_NODE && containsArabic(node.textContent)) {
+                hasDirectArabicText = true;
+            }
+        });
+
+        // إذا وجدنا نصاً عربياً مباشراً، نطبق الإصلاح على الحاوية نفسها (مع الحرص)
+        if (hasDirectArabicText && !isFlexOrGrid(container)) {
+            const text = getTextWithoutCode(container);
+            const ratio = calculateArabicRatio(text);
+            container.setAttribute('dir', ratio > RTL_RATIO_THRESHOLD ? 'rtl' : 'auto');
+            container.style.unicodeBidi = 'isolate';
+        }
+
+        // --- 3. نُجبر أكواد الكود البرمجي داخل الحاوية على الاتجاه اليساري ---
+        container.querySelectorAll(CODE_SELECTOR).forEach(forceLtr);
+    }
+
+    /**
+     * الدالة الرئيسية التي تمسح الصفحة كاملة وتُصلح جميع النصوص.
+     * تُستخدم عند أول تشغيل وبعد اكتمال تحميل الصفحة؛
+     * أما التحديثات اللاحقة فتمر عبر المراقب بعدة حاويات فقط (أسرع).
      */
     function fixPageContent() {
-        // قائمة المحددات التي تحتوي على نصوص المحادثة في DeepSeek
-        // (تم جمعها من هيكل الصفحة الحالي)
-        const chatContainerSelectors = [
-            '.ds-markdown',
-            '.markdown-body',
-            '.message-content',
-            '[class*="message"] > div',
-            '[class*="chat"] .prose'
-        ];
-        const containers = document.querySelectorAll(chatContainerSelectors.join(','));
-
-        // نتعامل مع كل حاوية على حدة
-        containers.forEach((container) => {
-            // نتأكد أن الحاوية نفسها ليست جزءاً من كود برمجي
-            if (container.closest('code, pre')) {
-                return;
-            }
-
-            // --- 1. نعالج العناصر النصية الصريحة داخل الحاوية ---
-            const textElementSelectors = [
-                'p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                'span:not([class*="icon"]):not([class*="btn"])',
-                'div:not([class*="flex"]):not([class*="grid"]):not([class*="icon"])'
-            ];
-            const targetElements = container.querySelectorAll(textElementSelectors.join(','));
-            targetElements.forEach(applyFixToElement);
-
-            // --- 2. نعالج النص المباشر (غير المغلف) داخل الحاوية ---
-            // نفحص العقد النصية المباشرة (Text Nodes) التي هي أبناء مباشرون للحاوية
-            const childNodes = container.childNodes;
-            let hasDirectArabicText = false;
-            childNodes.forEach((node) => {
-                if (node.nodeType === Node.TEXT_NODE && containsArabic(node.textContent)) {
-                    hasDirectArabicText = true;
-                }
-            });
-
-            // إذا وجدنا نصاً عربياً مباشراً، نطبق الإصلاح على الحاوية نفسها (مع الحرص)
-            if (hasDirectArabicText && !container.closest('code, pre')) {
-                const containerDisplay = window.getComputedStyle(container).display;
-                // نتجنب الحاويات المرنة كما في السابق
-                if (!['flex', 'grid', 'inline-flex', 'inline-grid'].includes(containerDisplay)) {
-                    const text = container.textContent;
-                    const ratio = calculateArabicRatio(text);
-                    container.setAttribute('dir', ratio > 0.5 ? 'rtl' : 'auto');
-                    container.style.unicodeBidi = 'isolate';
-                }
-            }
-        });
-
-        // --- 3. نُجبر كل عناصر الكود البرمجي على الاتجاه اليساري (لأمان) ---
-        const codeElements = document.querySelectorAll('code, pre, .code-block, .hljs');
-        codeElements.forEach((el) => {
-            el.setAttribute('dir', 'ltr');
-            el.style.unicodeBidi = 'embed';
-        });
+        document.querySelectorAll(CHAT_CONTAINER_SELECTORS).forEach(fixContainer);
+        // نجبر كل عناصر الكود البرمجي في الصفحة على الاتجاه اليساري (لأمان)
+        document.querySelectorAll(CODE_SELECTOR).forEach(forceLtr);
     }
 
     // --------------------- استراتيجية منع الوميض ---------------------
 
     /**
-     * نستخدم مجموعة من التقنيات لضمان أن النصوص تظهر بالاتجاه الصحيح
-     * منذ اللحظة الأولى، دون أن ينقلب النص أمام عين المستخدم.
-     * 
-     * 1. ننفذ المعالجة فور أن يصبح هيكل الصفحة (DOM) جاهزاً، وقبل أن
-     *    يرسم المتصفح أي شيء (DOMContentLoaded).
-     * 2. نراقب أي تغييرات تحدث في الصفحة (إضافة رسائل جديدة) باستخدام
-     *    MutationObserver، وننفذ المعالجة في الإطار التالي (requestAnimationFrame)
-     *    لضمان أن التغيير يحدث قبل الرسم.
-     * 3. ننفذ معالجة إضافية بعد تحميل الصفحة بالكامل (load) للتأكد.
+     * بدلاً من مسح الصفحة كاملة مع كل تغيير صغير (حتى حرف واحد)،
+     * نجمع الحاويات المتأثرة في مجموعة واحدة، ثم نعالجها مرة واحدة
+     * في الإطار التالي (requestAnimationFrame) قبل أن يرسم المتصفح.
+     * والعلامة isFrameScheduled تمنع تعدد الجدولة في نفس الإطار.
      */
+    const pendingContainers = new Set();
+    let hasPendingCode = false;
+    let isFrameScheduled = false;
 
-    // الخطوة 1: نعالج فور جاهزية DOM
+    /**
+     * تحدد الحاويات التي تأثرت بتغيير في DOM وتضيفها إلى قائمة الانتظار.
+     * @param {Node} node - العقدة المتغيّرة (عنصر أو عقدة نصية)
+     */
+    function scheduleFixForNode(node) {
+        if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.TEXT_NODE) {
+            return;
+        }
+
+        // العقدة النصية نعود لأبها للوصول إلى الحاوية
+        const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+        if (!element) return;
+
+        // الحاوية التي ينتمي إليها العنصر (أو العنصر نفسه إن كان حاوية)
+        const ownContainer = element.closest(CHAT_CONTAINER_SELECTORS);
+        if (ownContainer) {
+            pendingContainers.add(ownContainer);
+        }
+
+        // العنصر قد يحتوي على حاويات جديدة أُضيفت دفعة واحدة
+        // (مثال: رسالة محادثة كاملة تدخل الصفحة في عقدة واحدة)
+        element.querySelectorAll(CHAT_CONTAINER_SELECTORS).forEach((container) => {
+            pendingContainers.add(container);
+        });
+
+        // كود برمجي خارج المحادثة (مثل محرر الإدخال) يحتاج فرض الاتجاه اليساري
+        if (!ownContainer && element.closest(CODE_SELECTOR)) {
+            hasPendingCode = true;
+        }
+    }
+
+    /**
+     * تُنفّذ كل الإصلاحات المتأخرة مرة واحدة ثم تُفرغ قائمة الانتظار.
+     */
+    function processPendingFixes() {
+        isFrameScheduled = false;
+        const containers = Array.from(pendingContainers);
+        pendingContainers.clear();
+        containers.forEach(fixContainer);
+
+        if (hasPendingCode) {
+            hasPendingCode = false;
+            document.querySelectorAll(CODE_SELECTOR).forEach(forceLtr);
+        }
+    }
+
+    /**
+     * تجدول معالجة في الإطار التالي إن لم تكن هناك معالجة مجدولة بالفعل.
+     */
+    function scheduleFrame() {
+        if (isFrameScheduled) return;
+        isFrameScheduled = true;
+        requestAnimationFrame(processPendingFixes);
+    }
+
+    /**
+     * يحول عقدة DOM متأثرة إلى حاويات محادثة ويجدول معالجتها.
+     * @param {Node} node - العقدة المتغيّرة
+     */
+    function scheduleFixForNodeAndUpdateFrame(node) {
+        scheduleFixForNode(node);
+        if (pendingContainers.size > 0 || hasPendingCode) {
+            scheduleFrame();
+        }
+    }
+
+    // الخطوة 1: نعالج فور جاهزية DOM (ونبدأ من document-start حتى نسبق أول رسم)
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             fixPageContent();
@@ -204,31 +309,20 @@
     }
 
     // الخطوة 2: مراقب التغييرات الديناميكية
+    // نراقب على مستوى document (وليس documentElement) لأن السكربت
+    // يعمل عند document-start وقد لا يكون documentElement جاهزاً بعد
     const observer = new MutationObserver((mutationsList) => {
-        // نتحقق مما إذا كانت هناك أي تغييرات تستدعي المعالجة
-        let shouldProcess = false;
         for (const mutation of mutationsList) {
-            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                shouldProcess = true;
-                break;
-            }
             if (mutation.type === 'characterData') {
-                shouldProcess = true;
-                break;
+                scheduleFixForNodeAndUpdateFrame(mutation.target);
+            } else if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                mutation.addedNodes.forEach(scheduleFixForNodeAndUpdateFrame);
             }
-        }
-
-        if (shouldProcess) {
-            // نستخدم requestAnimationFrame لتكون المعالجة قبل الرسم التالي
-            requestAnimationFrame(() => {
-                fixPageContent();
-            });
         }
     });
 
-    // نبدأ المراقبة على مستوى المستند بالكامل (لنفوت أي عقدة جديدة)
-    observer.observe(document.documentElement || document.body, {
-        childList: true,      // نراقب إضافة/حذف العناصر
+    observer.observe(document, {
+        childList: true,      // نراقب إضافة العناصر
         subtree: true,        // نراقب جميع المستويات الداخلية
         characterData: true   // نراقب تغيير النص داخل العناصر
     });
@@ -240,5 +334,5 @@
     });
 
     // نُعلم المستخدم بأن السكربت يعمل (في وحدة التحكم)
-    console.log('✅ DeepSeek RTL Fix (الإصدار الاحترافي) يعمل الآن بسلاسة.');
+    console.log('✅ DeepSeek RTL Fix v4.2 يعمل الآن بسلاسة.');
 })();
